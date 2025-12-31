@@ -20,13 +20,44 @@ import { storeKeyPair, getKeyPair, deleteKeyPair } from "./key-storage";
 import { validateProof } from "./proof-validator";
 
 // CRITICAL: Only accept messages from the main application origin
-// In production, this should be the exact main application domain
-const ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-  "https://example.com",
-  "https://www.example.com",
-];
+// Configure via environment variable in production
+const ALLOWED_ORIGINS: string[] = (() => {
+  // Check for environment-configured origins (set during build)
+  const envOrigins = (
+    import.meta as unknown as { env?: { VITE_ALLOWED_ORIGINS?: string } }
+  ).env?.VITE_ALLOWED_ORIGINS;
+  if (envOrigins) {
+    return envOrigins
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean);
+  }
+  // Default development origins
+  return [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://example.com",
+    "https://www.example.com",
+  ];
+})();
+
+// Environment check
+const IS_PRODUCTION =
+  (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE ===
+    "production" || process.env.NODE_ENV === "production";
+
+/**
+ * Logger utility - suppresses debug logs in production
+ */
+const logger = {
+  debug: (...args: unknown[]) => {
+    if (!IS_PRODUCTION) {
+      console.log(...args);
+    }
+  },
+  warn: (...args: unknown[]) => console.warn(...args),
+  error: (...args: unknown[]) => console.error(...args),
+};
 
 /**
  * Initialize the signing context
@@ -37,12 +68,21 @@ async function initialize(): Promise<void> {
   // Set up message handler
   window.addEventListener("message", handleMessage);
 
-  // Signal ready to parent
+  // Signal ready to parent - CRITICAL: Send to each allowed origin explicitly
+  // Never use "*" as it broadcasts to any embedding page
   if (window.parent !== window) {
-    window.parent.postMessage({ type: "READY" }, "*");
+    ALLOWED_ORIGINS.forEach((origin) => {
+      try {
+        window.parent.postMessage({ type: "READY" }, origin);
+      } catch {
+        // Origin may not match, which is expected
+      }
+    });
   }
 
-  console.log("[Signing Iframe] Ready and listening for messages");
+  if (!IS_PRODUCTION) {
+    logger.debug("[Signing Iframe] Ready and listening for messages");
+  }
 }
 
 /**
@@ -51,7 +91,7 @@ async function initialize(): Promise<void> {
 async function handleMessage(event: MessageEvent): Promise<void> {
   // CRITICAL: Validate origin
   if (!ALLOWED_ORIGINS.includes(event.origin)) {
-    console.warn(
+    logger.warn(
       "[Signing Iframe] Rejected message from unauthorized origin:",
       event.origin
     );
@@ -61,11 +101,11 @@ async function handleMessage(event: MessageEvent): Promise<void> {
   const request = event.data as SigningRequest;
 
   if (!request || !request.type || !request.requestId) {
-    console.warn("[Signing Iframe] Invalid request format");
+    logger.warn("[Signing Iframe] Invalid request format");
     return;
   }
 
-  console.log("[Signing Iframe] Received request:", request.type);
+  logger.debug("[Signing Iframe] Received request:", request.type);
 
   try {
     let response: SigningResponse;
@@ -112,7 +152,7 @@ async function handleMessage(event: MessageEvent): Promise<void> {
  * Initialize a new session - generate and store key pair
  */
 async function handleInit(requestId: string): Promise<SigningResponse> {
-  console.log("[Signing Iframe] Generating new key pair...");
+  logger.debug("[Signing Iframe] Generating new key pair...");
 
   // Delete any existing key pair
   await deleteKeyPair();
@@ -126,7 +166,7 @@ async function handleInit(requestId: string): Promise<SigningResponse> {
   // Export public key for server registration
   const publicKey = await exportPublicKey(keyPair.publicKey);
 
-  console.log("[Signing Iframe] Key pair generated and stored");
+  logger.debug("[Signing Iframe] Key pair generated and stored");
 
   return {
     requestId,
@@ -170,7 +210,7 @@ async function handleSign(
   // Validate the interaction proof
   const validation = validateProof(proof, action);
   if (!validation.valid) {
-    console.warn("[Signing Iframe] Proof validation failed:", validation.error);
+    logger.warn("[Signing Iframe] Proof validation failed:", validation.error);
     return {
       requestId,
       success: false,
@@ -197,7 +237,7 @@ async function handleSign(
   const signature = await signData(keyPair.privateKey, data.buffer);
   const signatureBase64 = arrayBufferToBase64(signature);
 
-  console.log("[Signing Iframe] Signed request successfully");
+  logger.debug("[Signing Iframe] Signed request successfully");
 
   return {
     requestId,

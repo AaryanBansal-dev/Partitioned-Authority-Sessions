@@ -1,6 +1,6 @@
 {
   "name": "partitioned-authority-sessions",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A revolutionary session security architecture that makes stolen session tokens cryptographically worthless through origin isolation and interaction proofs",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

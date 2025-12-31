@@ -63,7 +63,11 @@ export default function Home() {
         indexedDBKey: keyPair,
       });
 
-      // Set session cookie
+      // Set session cookie (DEMO ONLY)
+      // In production, cookies should be:
+      // - Set by the server with HttpOnly flag (prevents JS access)
+      // - Include Secure flag (HTTPS only)
+      // - Have SameSite=Strict (CSRF protection)
       document.cookie = `session_id=${sessionId}; path=/; max-age=86400`;
 
       setIsLoggedIn(true);

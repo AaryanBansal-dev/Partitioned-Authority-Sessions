@@ -16,7 +16,7 @@ Security vulnerabilities should not be disclosed publicly until they have been a
 
 ### 2. Email Us Directly
 
-Send a detailed report to: **security@example.com**
+Send a detailed report to the repository owner via GitHub private message or create a [GitHub Security Advisory](https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions/security/advisories/new).
 
 Include:
 - Description of the vulnerability

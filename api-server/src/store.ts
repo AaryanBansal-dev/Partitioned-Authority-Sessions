@@ -27,7 +27,9 @@ export async function initRedis(): Promise<void> {
     await redis.connect();
     console.log("[Redis] Connected successfully");
   } catch (error) {
-    console.warn("[Redis] Connection failed, using in-memory store");
+    console.info(
+      "[Redis] Connection not available, using in-memory store (suitable for development)"
+    );
     redis = null;
   }
 }
@@ -160,4 +162,63 @@ export function generateNonce(): string {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+/**
+ * Rate limiting key pattern
+ */
+function rateLimitKey(identifier: string): string {
+  return `ratelimit:${identifier}`;
+}
+
+const RATE_LIMIT_WINDOW = 60; // 1 minute window
+
+/**
+ * Check if a rate limit has been exceeded
+ * Returns true if rate limited, false otherwise
+ */
+export async function checkRateLimit(
+  identifier: string,
+  limit: number
+): Promise<boolean> {
+  const key = rateLimitKey(identifier);
+
+  if (redis) {
+    const count = await redis.get(key);
+    return count !== null && parseInt(count, 10) >= limit;
+  } else {
+    const expiry = inMemoryExpiry.get(key);
+    if (!expiry || expiry < Date.now()) {
+      return false;
+    }
+    const count = parseInt(inMemoryStore.get(key) || "0", 10);
+    return count >= limit;
+  }
+}
+
+/**
+ * Increment the rate limit counter for an identifier
+ */
+export async function incrementRateLimit(identifier: string): Promise<void> {
+  const key = rateLimitKey(identifier);
+
+  if (redis) {
+    const pipeline = redis.pipeline();
+    pipeline.incr(key);
+    pipeline.expire(key, RATE_LIMIT_WINDOW);
+    await pipeline.exec();
+  } else {
+    const expiry = inMemoryExpiry.get(key);
+    const now = Date.now();
+
+    if (!expiry || expiry < now) {
+      // Start new window
+      inMemoryStore.set(key, "1");
+      inMemoryExpiry.set(key, now + RATE_LIMIT_WINDOW * 1000);
+    } else {
+      // Increment existing counter
+      const count = parseInt(inMemoryStore.get(key) || "0", 10);
+      inMemoryStore.set(key, String(count + 1));
+    }
+  }
 }

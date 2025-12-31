@@ -19,19 +19,51 @@ import {
   storeNonce,
   validateAndConsumeNonce,
   generateNonce,
+  checkRateLimit,
+  incrementRateLimit,
 } from "./store";
 import { verifySignature } from "./crypto";
 import { validateInteractionProof } from "./validator";
 
+// Configuration from environment
 const PORT = parseInt(process.env.PORT || "8080");
-const SESSION_TTL = 86400; // 24 hours
+const SESSION_TTL = parseInt(process.env.SESSION_TTL || "86400"); // 24 hours
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const HTTPS_ENABLED = process.env.HTTPS_ENABLED === "true" || IS_PRODUCTION;
 
-// CORS configuration
-const ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-  "https://example.com",
-];
+// CORS configuration from environment
+const ALLOWED_ORIGINS: string[] = (() => {
+  const envOrigins = process.env.ALLOWED_ORIGINS;
+  if (envOrigins) {
+    return envOrigins
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean);
+  }
+  return [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://example.com",
+  ];
+})();
+
+// Rate limiting configuration
+const NONCE_RATE_LIMIT = parseInt(process.env.NONCE_RATE_LIMIT || "30"); // per minute
+const LOGIN_RATE_LIMIT = parseInt(process.env.LOGIN_RATE_LIMIT || "10"); // per minute
+
+/**
+ * Logger utility - suppresses logs in production unless explicitly enabled
+ */
+const logger = {
+  debug: (...args: unknown[]) => {
+    if (!IS_PRODUCTION || process.env.DEBUG === "true") {
+      console.log(...args);
+    }
+  },
+  info: (...args: unknown[]) => console.info(...args),
+  warn: (...args: unknown[]) => console.warn(...args),
+  error: (...args: unknown[]) => console.error(...args),
+};
 
 /**
  * Generate a unique session ID
@@ -47,11 +79,33 @@ function generateSessionId(): string {
 /**
  * Handle CORS preflight and headers
  */
+/**
+ * Security headers for all responses
+ */
+function securityHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+  };
+
+  // Add HSTS in production
+  if (HTTPS_ENABLED) {
+    headers["Strict-Transport-Security"] =
+      "max-age=31536000; includeSubDomains";
+  }
+
+  return headers;
+}
+
 function corsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigin =
     origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
 
   return {
+    ...securityHeaders(),
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers":
@@ -204,13 +258,69 @@ async function handleRequest(request: Request): Promise<Response> {
 
     // Login
     if (path === "/api/auth/login" && request.method === "POST") {
+      const clientIP =
+        request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
+        "unknown";
+
+      // Rate limiting for login attempts
+      const rateLimitKey = `login:${clientIP}`;
+      const isRateLimited = await checkRateLimit(
+        rateLimitKey,
+        LOGIN_RATE_LIMIT
+      );
+      if (isRateLimited) {
+        logger.warn(`[Auth] Rate limited login attempt from ${clientIP}`);
+        return errorResponse(
+          "Too many login attempts. Please try again later.",
+          429,
+          origin
+        );
+      }
+      await incrementRateLimit(rateLimitKey);
+
       const body = (await request.json()) as LoginRequest;
 
-      // In production, verify credentials against database
-      // For demo, accept any credentials
-      if (!body.username || !body.password || !body.publicKey) {
-        return errorResponse("Missing required fields", 400, origin);
+      // Input validation
+      if (!body.username || typeof body.username !== "string") {
+        return errorResponse("Username is required", 400, origin);
       }
+      if (!body.password || typeof body.password !== "string") {
+        return errorResponse("Password is required", 400, origin);
+      }
+      if (!body.publicKey || typeof body.publicKey !== "object") {
+        return errorResponse("Public key is required", 400, origin);
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(body.username)) {
+        return errorResponse("Invalid email format", 400, origin);
+      }
+
+      // Validate password length
+      if (body.password.length < 8) {
+        return errorResponse(
+          "Password must be at least 8 characters",
+          400,
+          origin
+        );
+      }
+
+      // Validate public key structure (basic JWK validation)
+      const jwk = body.publicKey as Record<string, unknown>;
+      if (!jwk.kty || jwk.kty !== "EC" || !jwk.crv || !jwk.x || !jwk.y) {
+        return errorResponse(
+          "Invalid public key format. Expected ECDSA P-256 JWK.",
+          400,
+          origin
+        );
+      }
+
+      // TODO: In production, verify credentials against database
+      // const user = await verifyCredentials(body.username, body.password);
+      // if (!user) {
+      //   return errorResponse("Invalid credentials", 401, origin);
+      // }
 
       // Create session
       const sessionId = generateSessionId();
@@ -222,7 +332,7 @@ async function handleRequest(request: Request): Promise<Response> {
         publicKey: JSON.stringify(body.publicKey),
         createdAt: now,
         lastAccess: now,
-        ipAddress: request.headers.get("X-Forwarded-For") || "unknown",
+        ipAddress: clientIP,
         userAgent: request.headers.get("User-Agent") || "unknown",
         expiresAt: now + SESSION_TTL * 1000,
       };
@@ -240,17 +350,31 @@ async function handleRequest(request: Request): Promise<Response> {
         expiresAt: session.expiresAt,
       };
 
-      console.log(
+      logger.debug(
         `[Auth] Login successful for ${
           body.username
         }, session: ${sessionId.substring(0, 8)}...`
       );
 
+      // Build cookie with proper security flags
+      const cookieFlags = [
+        `session_id=${sessionId}`,
+        "Path=/",
+        "HttpOnly",
+        "SameSite=Strict",
+        `Max-Age=${SESSION_TTL}`,
+      ];
+
+      // Add Secure flag for HTTPS environments
+      if (HTTPS_ENABLED) {
+        cookieFlags.push("Secure");
+      }
+
       return new Response(JSON.stringify(response), {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": `session_id=${sessionId}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL}`,
+          "Set-Cookie": cookieFlags.join("; "),
           ...corsHeaders(origin),
         },
       });
@@ -261,23 +385,58 @@ async function handleRequest(request: Request): Promise<Response> {
       const sessionId = request.headers.get("X-Session-ID");
       if (sessionId) {
         await deleteSession(sessionId);
-        console.log(
+        logger.debug(
           `[Auth] Logout for session: ${sessionId.substring(0, 8)}...`
         );
+      }
+
+      // Build logout cookie with proper security flags
+      const logoutCookieFlags = ["session_id=", "Path=/", "Max-Age=0"];
+      if (HTTPS_ENABLED) {
+        logoutCookieFlags.push("Secure");
       }
 
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": "session_id=; Path=/; Max-Age=0",
+          "Set-Cookie": logoutCookieFlags.join("; "),
           ...corsHeaders(origin),
         },
       });
     }
 
-    // Get nonce (requires session, but not signature)
+    // Get nonce (requires valid session and rate limiting)
     if (path === "/api/nonce" && request.method === "GET") {
+      // Require a valid session for nonce generation
+      const sessionId = request.headers.get("X-Session-ID");
+      if (!sessionId) {
+        return errorResponse("Session ID required", 401, origin);
+      }
+
+      const session = await getSession(sessionId);
+      if (!session) {
+        return errorResponse("Invalid or expired session", 401, origin);
+      }
+
+      // Rate limiting for nonce requests
+      const rateLimitKey = `nonce:${sessionId}`;
+      const isRateLimited = await checkRateLimit(
+        rateLimitKey,
+        NONCE_RATE_LIMIT
+      );
+      if (isRateLimited) {
+        logger.warn(
+          `[Nonce] Rate limited for session: ${sessionId.substring(0, 8)}...`
+        );
+        return errorResponse(
+          "Too many nonce requests. Please slow down.",
+          429,
+          origin
+        );
+      }
+      await incrementRateLimit(rateLimitKey);
+
       const nonce = generateNonce();
       await storeNonce(nonce);
 
@@ -332,7 +491,7 @@ async function handleRequest(request: Request): Promise<Response> {
 
       const body = await request.clone().json();
 
-      console.log(
+      logger.debug(
         `[Protected] Action executed for user ${verification.session!.userId}:`,
         body
       );
@@ -353,7 +512,11 @@ async function handleRequest(request: Request): Promise<Response> {
     // 404 for unmatched routes
     return errorResponse("Not found", 404, origin);
   } catch (error) {
-    console.error("[Server] Error:", error);
+    // Log error details server-side but don't expose to client
+    logger.error(
+      "[Server] Error:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
     return errorResponse("Internal server error", 500, origin);
   }
 }
@@ -362,7 +525,7 @@ async function handleRequest(request: Request): Promise<Response> {
  * Start the server
  */
 async function main(): Promise<void> {
-  console.log("[Server] Initializing...");
+  logger.info("[Server] Initializing...");
 
   await initRedis();
 
@@ -371,17 +534,20 @@ async function main(): Promise<void> {
     fetch: handleRequest,
   });
 
-  console.log(
+  logger.info(
     `[Server] PAN API Server running on http://localhost:${server.port}`
   );
-  console.log("[Server] Endpoints:");
-  console.log("  POST /api/auth/login    - Authenticate and create session");
-  console.log("  POST /api/auth/logout   - Terminate session");
-  console.log("  GET  /api/nonce         - Get fresh nonce for signing");
-  console.log("  GET  /api/session/info  - Get session information");
-  console.log(
+  logger.info("[Server] Endpoints:");
+  logger.info("  POST /api/auth/login    - Authenticate and create session");
+  logger.info("  POST /api/auth/logout   - Terminate session");
+  logger.info("  GET  /api/nonce         - Get fresh nonce for signing");
+  logger.info("  GET  /api/session/info  - Get session information");
+  logger.info(
     "  POST /api/protected/*   - Protected endpoints (require signature)"
+  );
+  logger.info(
+    `[Server] Security: HTTPS=${HTTPS_ENABLED}, Rate limiting enabled`
   );
 }
 
-main().catch(console.error);
+main().catch(logger.error);

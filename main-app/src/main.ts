@@ -29,26 +29,24 @@ function log(message: string): void {
 }
 
 /**
- * Update the log display
+ * Update the log display - using safe DOM manipulation (no innerHTML)
  */
 function updateLogDisplay(): void {
   const logContainer = document.getElementById("log-output");
   if (logContainer) {
-    logContainer.innerHTML = state.logs
-      .slice(-20) // Keep last 20 logs
-      .map((l) => `<div class="log-entry">${escapeHtml(l)}</div>`)
-      .join("");
+    // Clear existing content safely
+    logContainer.replaceChildren();
+
+    // Add log entries using safe DOM methods
+    state.logs.slice(-20).forEach((logEntry) => {
+      const div = document.createElement("div");
+      div.className = "log-entry";
+      div.textContent = logEntry; // Safe: textContent doesn't interpret HTML
+      logContainer.appendChild(div);
+    });
+
     logContainer.scrollTop = logContainer.scrollHeight;
   }
-}
-
-/**
- * Escape HTML for safe display
- */
-function escapeHtml(text: string): string {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 /**

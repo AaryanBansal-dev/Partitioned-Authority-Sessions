@@ -66,22 +66,53 @@ export async function verifySignature(
  * Create canonical message for verification
  * Format: action|proof|nonce
  * Must match the client-side implementation exactly
+ * Uses RFC 8785-like JSON canonicalization (sorted keys at all levels)
  */
 function createCanonicalMessage(
   action: unknown,
   proof: unknown,
   nonce: string
 ): string {
-  const canonicalAction = JSON.stringify(
-    action,
-    Object.keys(action as object).sort()
-  );
-  const canonicalProof = JSON.stringify(
-    proof,
-    Object.keys(proof as object).sort()
-  );
+  const canonicalAction = canonicalize(action);
+  const canonicalProof = canonicalize(proof);
 
   return `${canonicalAction}|${canonicalProof}|${nonce}`;
+}
+
+/**
+ * Canonicalize a value for consistent JSON serialization
+ * Recursively sorts object keys and handles all JSON types
+ */
+function canonicalize(value: unknown): string {
+  if (value === null) return "null";
+  if (value === undefined) return "null";
+
+  const type = typeof value;
+
+  if (type === "boolean" || type === "number") {
+    return JSON.stringify(value);
+  }
+
+  if (type === "string") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    const items = value.map((item) => canonicalize(item));
+    return `[${items.join(",")}]`;
+  }
+
+  if (type === "object") {
+    const obj = value as Record<string, unknown>;
+    const sortedKeys = Object.keys(obj).sort();
+    const pairs = sortedKeys.map((key) => {
+      return `${JSON.stringify(key)}:${canonicalize(obj[key])}`;
+    });
+    return `{${pairs.join(",")}}`;
+  }
+
+  // Fallback for unsupported types
+  return "null";
 }
 
 /**

@@ -9,8 +9,26 @@ import type {
   InteractionProof,
 } from "./types";
 
-// Signing iframe origin - in production this would be a subdomain
-const SIGNING_IFRAME_URL = "http://localhost:3001";
+// Configuration from environment (set during build)
+const SIGNING_IFRAME_URL =
+  (import.meta as unknown as { env?: { VITE_SIGNING_IFRAME_URL?: string } }).env
+    ?.VITE_SIGNING_IFRAME_URL || "http://localhost:3001";
+const IS_PRODUCTION =
+  (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE ===
+  "production";
+
+/**
+ * Logger utility - suppresses debug logs in production
+ */
+const logger = {
+  debug: (...args: unknown[]) => {
+    if (!IS_PRODUCTION) {
+      console.log(...args);
+    }
+  },
+  warn: (...args: unknown[]) => console.warn(...args),
+  error: (...args: unknown[]) => console.error(...args),
+};
 
 export class SigningClient {
   private iframe: HTMLIFrameElement | null = null;
@@ -63,7 +81,7 @@ export class SigningClient {
     `;
 
     document.body.appendChild(this.iframe);
-    console.log("[SigningClient] Iframe embedded");
+    logger.debug("[SigningClient] Iframe embedded");
   }
 
   /**
@@ -80,7 +98,7 @@ export class SigningClient {
 
       // Handle ready signal
       if (data.type === "READY") {
-        console.log("[SigningClient] Signing iframe is ready");
+        logger.debug("[SigningClient] Signing iframe is ready");
         this.isReady = true;
         this.readyResolve();
         return;
@@ -149,7 +167,7 @@ export class SigningClient {
    * Returns the public key for server registration
    */
   public async initialize(): Promise<JsonWebKey> {
-    console.log("[SigningClient] Initializing new session...");
+    logger.debug("[SigningClient] Initializing new session...");
 
     const response = await this.sendRequest({
       type: "INIT",
@@ -164,7 +182,7 @@ export class SigningClient {
       throw new Error("No public key returned from signing context");
     }
 
-    console.log("[SigningClient] Session initialized, public key received");
+    logger.debug("[SigningClient] Session initialized, public key received");
     return response.publicKey;
   }
 
@@ -192,7 +210,7 @@ export class SigningClient {
     proof: InteractionProof,
     nonce: string
   ): Promise<string> {
-    console.log(
+    logger.debug(
       "[SigningClient] Requesting signature for:",
       action.displayName
     );
@@ -213,7 +231,7 @@ export class SigningClient {
       throw new Error("No signature returned");
     }
 
-    console.log("[SigningClient] Signature received");
+    logger.debug("[SigningClient] Signature received");
     return response.signature;
   }
 }

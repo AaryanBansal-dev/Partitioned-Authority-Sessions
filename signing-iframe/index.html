@@ -3,6 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Security: Strict Content Security Policy -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; frame-ancestors https://example.com https://www.example.com http://localhost:3000 http://127.0.0.1:3000;"
+    />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta
+      http-equiv="X-Frame-Options"
+      content="ALLOW-FROM https://example.com"
+    />
     <title>PAN Signing Context</title>
     <style>
       /* This iframe should be invisible in production */

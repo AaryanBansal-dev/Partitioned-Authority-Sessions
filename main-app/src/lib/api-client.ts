@@ -7,7 +7,13 @@ import { signingClient } from "./signing-client";
 import { sessionManager } from "./session-manager";
 import { interactionTracker } from "./interaction-tracker";
 
-const API_BASE = "http://localhost:8080";
+// Configuration from environment (set during build)
+const API_BASE =
+  (import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env
+    ?.VITE_API_BASE || "http://localhost:8080";
+const IS_PRODUCTION =
+  (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE ===
+  "production";
 
 interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
