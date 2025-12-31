@@ -1,32 +1,20 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const manrope = Manrope({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-heading",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
-  title: "PAN Security Demo - Partitioned Authority Sessions",
-  description:
-    "Interactive demo showing how PAN makes session hijacking impossible. Test XSS attacks, cookie theft, and key extraction - all blocked by design.",
-  keywords: [
-    "security",
-    "session",
-    "authentication",
-    "XSS",
-    "cookie",
-    "WebCrypto",
-    "ECDSA",
-  ],
-  authors: [{ name: "Aaryan Bansal" }],
-  openGraph: {
-    title: "PAN Security Demo",
-    description:
-      "See why stolen session tokens are worthless with Partitioned Authority Sessions",
-    type: "website",
-  },
+  title: "PAN // PROTOCOL",
+  description: "Partitioned Authority Sessions. Security by design.",
 };
 
 export default function RootLayout({
@@ -36,7 +24,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body
+        className={`${manrope.variable} ${jetbrainsMono.variable} font-sans bg-black text-white antialiased selection:bg-[#ccff00] selection:text-black overflow-x-hidden`}
+      >
         {children}
       </body>
     </html>

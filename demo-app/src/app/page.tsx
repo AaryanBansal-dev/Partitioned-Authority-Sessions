@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
-// Types
+// --- Types ---
 interface SessionData {
   sessionId: string | null;
   publicKey: JsonWebKey | null;
@@ -14,15 +14,95 @@ interface AttackResult {
   success: boolean;
   message: string;
   details: string;
+  timestamp: number;
 }
 
 interface LogEntry {
+  id: string;
   timestamp: string;
   type: "info" | "success" | "error" | "warning";
   message: string;
 }
 
-// PAN Demo Application
+// --- Icons (Minimalist / Technical) ---
+const TerminalIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
+    className={className}
+  >
+    <polyline points="4 17 10 11 4 5" />
+    <line x1="12" y1="19" x2="20" y2="19" />
+  </svg>
+);
+
+const LockIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
+    className={className}
+  >
+    <rect x="3" y="11" width="18" height="11" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const ShieldIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
+    className={className}
+  >
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
+
+const ActivityIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
+    className={className}
+  >
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>
+);
+
+// --- Layout Components ---
+
+const GlitchText = ({ text }: { text: string }) => {
+  return (
+    <span className="relative inline-block font-mono tracking-tighter group">
+      <span className="relative z-10">{text}</span>
+      <span className="absolute left-0 top-0 -z-10 w-full h-full text-[#ccff00] opacity-0 group-hover:opacity-70 group-hover:translate-x-[2px] transition-all duration-100 select-none">
+        {text}
+      </span>
+      <span className="absolute left-0 top-0 -z-10 w-full h-full text-red-500 opacity-0 group-hover:opacity-70 group-hover:-translate-x-[2px] transition-all duration-100 select-none">
+        {text}
+      </span>
+    </span>
+  );
+};
+
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [sessionData, setSessionData] = useState<SessionData>({
@@ -36,46 +116,43 @@ export default function Home() {
   const [stolenCookie, setStolenCookie] = useState<string | null>(null);
 
   const addLog = useCallback((type: LogEntry["type"], message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs((prev) => [...prev.slice(-19), { timestamp, type, message }]);
+    const timestamp = new Date().toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      fractionalSecondDigits: 3,
+    });
+    const id = Math.random().toString(36).substring(7);
+    setLogs((prev) => [...prev.slice(-15), { id, timestamp, type, message }]);
   }, []);
 
-  // Simulate signing iframe initialization
+  // --- Logic ---
   const initializeSession = async () => {
-    addLog("info", "Generating ECDSA key pair in isolated context...");
-
+    addLog("info", "INIT_SEQUENCE_START...");
     try {
-      // Generate key pair (simulating signing iframe)
+      await new Promise((r) => setTimeout(r, 400));
       const keyPair = await crypto.subtle.generateKey(
         { name: "ECDSA", namedCurve: "P-256" },
-        false, // Non-extractable!
+        false, // Non-extractable
         ["sign", "verify"]
       );
-
       const publicKey = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
       const sessionId = crypto.randomUUID();
 
-      // Store in IndexedDB (simulating)
       setSessionData({
         sessionId,
         publicKey,
         createdAt: Date.now(),
         indexedDBKey: keyPair,
       });
-
-      // Set session cookie (DEMO ONLY)
-      // In production, cookies should be:
-      // - Set by the server with HttpOnly flag (prevents JS access)
-      // - Include Secure flag (HTTPS only)
-      // - Have SameSite=Strict (CSRF protection)
       document.cookie = `session_id=${sessionId}; path=/; max-age=86400`;
 
       setIsLoggedIn(true);
-      addLog("success", "Key pair generated with non-extractable flag");
-      addLog("success", `Session established: ${sessionId.substring(0, 8)}...`);
-      addLog("info", "Public key registered with server (simulated)");
+      addLog("success", "KEYPAIR_GENERATED [NON_EXTRACTABLE]");
+      addLog("success", `SESSION_ESTABLISHED: ${sessionId.split("-")[0]}...`);
     } catch (error) {
-      addLog("error", `Failed to initialize: ${error}`);
+      addLog("error", `INIT_FAILED: ${error}`);
     }
   };
 
@@ -90,473 +167,340 @@ export default function Home() {
     setIsLoggedIn(false);
     setStolenCookie(null);
     setAttackResult(null);
-    addLog("info", "Session cleared");
+    addLog("info", "SESSION_TERMINATED");
   };
 
-  // Attack simulations
   const simulateXSSCookieTheft = () => {
-    addLog("warning", "🔴 ATTACK: Simulating XSS cookie theft...");
-
+    addLog("warning", "EXECUTING_XSS_PAYLOAD...");
     const cookies = document.cookie;
     const sessionMatch = cookies.match(/session_id=([^;]+)/);
-
     if (sessionMatch) {
       setStolenCookie(sessionMatch[1]);
-      addLog(
-        "warning",
-        `Attacker stole cookie: ${sessionMatch[1].substring(0, 8)}...`
-      );
-      addLog(
-        "info",
-        "Cookie was stolen, but attacker still cannot make authenticated requests"
-      );
+      addLog("success", "COOKIE_EXFILTRATED");
     } else {
-      addLog("error", "No session cookie found");
+      addLog("error", "NO_ACTIVE_SESSION");
     }
   };
 
   const simulateUseStokenCookie = async () => {
-    addLog("warning", "🔴 ATTACK: Attempting to use stolen cookie...");
-
+    addLog("warning", "REPLAY_ATTACK_INIT...");
     if (!stolenCookie) {
-      addLog("error", "No stolen cookie available");
+      addLog("error", "NO_TARGET_CREDENTIALS");
       return;
     }
-
-    // Simulate making a request with just the stolen cookie
-    addLog("info", "Making request with stolen session token...");
-    addLog(
-      "info",
-      'Request headers: { X-Session-ID: "' +
-        stolenCookie.substring(0, 8) +
-        '..." }'
-    );
-
-    // Simulate server response
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
+    await new Promise((resolve) => setTimeout(resolve, 600));
     setAttackResult({
       success: false,
-      message: "❌ ATTACK FAILED",
-      details:
-        "Server response: 401 Unauthorized - Missing X-Signature and X-Interaction-Proof headers",
+      message: "ACCESS_DENIED",
+      details: "INVALID_SIGNATURE: ORIGIN_MISMATCH",
+      timestamp: Date.now(),
     });
-
-    addLog("error", "Server rejected request: Missing signature!");
-    addLog(
-      "success",
-      "✅ PAN Protection: Token alone is worthless without signature from isolated context"
-    );
+    addLog("error", "SERVER_REJECTED: 401_UNAUTHORIZED");
+    addLog("success", "PAN_PROTOCOL_DEFENSE_ACTIVE");
   };
 
   const simulateKeyExtraction = async () => {
-    addLog("warning", "🔴 ATTACK: Attempting to extract private key...");
-
+    addLog("warning", "ATTEMPTING_KeyExtract()...");
     if (!sessionData.indexedDBKey) {
-      addLog("error", "No key pair in memory");
+      addLog("error", "STORAGE_EMPTY");
       return;
     }
-
     try {
-      // Try to export the private key
-      addLog("info", "Calling crypto.subtle.exportKey on private key...");
       await crypto.subtle.exportKey("jwk", sessionData.indexedDBKey.privateKey);
-
-      // This should never happen
+      // Fail case (should not happen)
       setAttackResult({
         success: true,
-        message: "⚠️ KEY EXTRACTED",
-        details: "This should not happen with non-extractable keys!",
+        message: "CRITICAL_FAILURE",
+        details: "KEY_LEAKED",
+        timestamp: Date.now(),
       });
-    } catch (error) {
+    } catch {
       setAttackResult({
         success: false,
-        message: "❌ EXTRACTION BLOCKED",
-        details: "InvalidAccessError: The key is not extractable",
+        message: "EXTRACTION_BLOCKED",
+        details: "InvalidAccessError: KEY_NOT_EXTRACTABLE",
+        timestamp: Date.now(),
       });
-      addLog("error", "WebCrypto blocked key extraction: InvalidAccessError");
-      addLog(
-        "success",
-        "✅ PAN Protection: Private key is non-extractable by design"
-      );
+      addLog("error", "EXCEPTION: InvalidAccessError");
+      addLog("success", "HARDWARE_BACKED_SECURITY_ACTIVE");
     }
-  };
-
-  const simulateCrossOriginAccess = () => {
-    addLog("warning", "🔴 ATTACK: Simulating cross-origin iframe access...");
-    addLog("info", "Attacker XSS tries to access signing iframe content...");
-
-    // Simulate Same-Origin Policy blocking
-    setTimeout(() => {
-      setAttackResult({
-        success: false,
-        message: "❌ ACCESS DENIED",
-        details:
-          "SecurityError: Blocked by Same-Origin Policy. Cannot access cross-origin frame.",
-      });
-      addLog("error", "Browser blocked: Same-Origin Policy violation");
-      addLog(
-        "success",
-        "✅ PAN Protection: Signing iframe is on different origin, inaccessible to attacker"
-      );
-    }, 500);
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-xl">
-              🔐
+    <div className="min-h-screen bg-black text-[#e0e0e0] font-sans selection:bg-[#ccff00] selection:text-black overflow-x-hidden relative">
+      <div className="scanlines fixed inset-0 pointer-events-none z-50 opacity-10"></div>
+
+      {/* Grid Pattern Background */}
+      <div className="fixed inset-0 bg-grid-pattern opacity-20 pointer-events-none"></div>
+
+      {/* Main Container */}
+      <div className="relative z-10 max-w-[1400px] mx-auto p-4 md:p-8 lg:p-12 min-h-screen lg:h-screen flex flex-col">
+        {/* Header */}
+        <header
+          className="flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-[#222] pb-6 mb-8 group gap-4 animate-reveal"
+          style={{ animationDelay: "0ms" }}
+        >
+          <div>
+            <h1 className="text-4xl md:text-6xl font-bold uppercase tracking-tighter leading-none mb-2">
+              PAN<span className="text-[#ccff00]">_</span>PROTOCOL
+            </h1>
+            <p className="font-mono text-xs md:text-sm text-[#666] uppercase tracking-widest">
+              Partitioned Authority Sessions //{" "}
+              <span className="text-[#ccff00]">v1.0.4</span> // SECURE_CONTEXT
+            </p>
+          </div>
+          <div className="hidden md:block text-right">
+            <div className="text-xs font-mono text-[#666] mb-1">
+              SYSTEM_STATUS
             </div>
-            <div>
-              <h1 className="font-bold text-lg">PAN Security Demo</h1>
-              <p className="text-xs text-gray-500">
-                Partitioned Authority Sessions
-              </p>
+            <div className="flex items-center justify-end gap-2">
+              <span className="w-2 h-2 bg-[#ccff00] animate-pulse"></span>
+              <span className="text-[#ccff00] font-mono tracking-wider">
+                OPERATIONAL
+              </span>
             </div>
           </div>
-          <a
-            href="https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions"
-            target="_blank"
-            className="text-gray-400 hover:text-white transition"
+        </header>
+
+        {/* Content Grid */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+          {/* Left Panel: Control & State */}
+          <div
+            className="lg:col-span-4 flex flex-col gap-6 animate-reveal"
+            style={{ animationDelay: "100ms" }}
           >
-            GitHub ↗
-          </a>
-        </div>
-      </header>
+            {/* Login Module */}
+            <div className="bg-[#0a0a0a] border border-[#222] p-1 relative group hover:border-[#333] transition-colors">
+              <div className="absolute -top-1 -left-1 w-2 h-2 border-l border-t border-[#ccff00]"></div>
+              <div className="absolute -bottom-1 -right-1 w-2 h-2 border-r border-b border-[#ccff00]"></div>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Session & Storage */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Login/Session Panel */}
-            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <span
-                  className={`w-3 h-3 rounded-full ${
-                    isLoggedIn ? "bg-green-500" : "bg-gray-600"
-                  }`}
-                ></span>
-                Session Status
-              </h2>
+              <div className="p-6 bg-[#050505]">
+                <h3 className="font-mono text-[#ccff00] text-sm mb-6 uppercase flex items-center gap-2">
+                  <LockIcon className="w-4 h-4" /> Auth_Gateway
+                </h3>
 
-              {!isLoggedIn ? (
-                <div className="space-y-4">
-                  <p className="text-gray-400">
-                    Click login to create a PAN-protected session with isolated
-                    cryptographic keys.
-                  </p>
-                  <button
-                    onClick={initializeSession}
-                    className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:opacity-90 transition"
-                  >
-                    🔑 Login & Generate Keys
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                    <p className="text-green-400 font-medium">
-                      ✓ Session Active
+                {!isLoggedIn ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-[#888]">
+                      Initialize secure enclave generation. Establish
+                      hardware-backed session identity.
                     </p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Try the attacks below to see how PAN protects you
-                    </p>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="w-full py-3 bg-gray-800 rounded-xl font-medium hover:bg-gray-700 transition"
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* What's Stored Panel */}
-            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
-              <h2 className="text-lg font-semibold mb-4">
-                📦 What's Stored On Your Device
-              </h2>
-
-              <div className="space-y-4">
-                {/* Cookie Storage */}
-                <div className="p-4 bg-gray-800/50 rounded-xl">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-orange-400">
-                      🍪 Session Cookie
-                    </h3>
-                    <span className="text-xs text-gray-500">
-                      HttpOnly in production
-                    </span>
-                  </div>
-                  <code className="text-sm text-gray-300 break-all">
-                    {sessionData.sessionId
-                      ? `session_id=${sessionData.sessionId.substring(
-                          0,
-                          16
-                        )}...`
-                      : "No cookie set"}
-                  </code>
-                  <p className="text-xs text-gray-500 mt-2">
-                    ⚠️ This is just an identifier - grants ZERO authority alone
-                  </p>
-                </div>
-
-                {/* IndexedDB Storage */}
-                <div className="p-4 bg-gray-800/50 rounded-xl">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-purple-400">
-                      💾 IndexedDB (Signing Origin)
-                    </h3>
-                    <span className="text-xs text-gray-500">
-                      Origin-isolated
-                    </span>
-                  </div>
-                  {sessionData.indexedDBKey ? (
-                    <div className="space-y-2">
-                      <div className="text-sm">
-                        <span className="text-gray-500">Private Key: </span>
-                        <span className="text-red-400">[NON-EXTRACTABLE]</span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-gray-500">Algorithm: </span>
-                        <span className="text-gray-300">ECDSA P-256</span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-gray-500">Created: </span>
-                        <span className="text-gray-300">
-                          {sessionData.createdAt
-                            ? new Date(
-                                sessionData.createdAt
-                              ).toLocaleTimeString()
-                            : "N/A"}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <code className="text-sm text-gray-500">
-                      No keys stored
-                    </code>
-                  )}
-                  <p className="text-xs text-gray-500 mt-2">
-                    ✅ Private key can NEVER be exported, even with full JS
-                    execution
-                  </p>
-                </div>
-
-                {/* Public Key (Server) */}
-                <div className="p-4 bg-gray-800/50 rounded-xl">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-cyan-400">
-                      🔑 Public Key (Registered on Server)
-                    </h3>
-                  </div>
-                  {sessionData.publicKey ? (
-                    <code className="text-xs text-gray-400 break-all block">
-                      {JSON.stringify(sessionData.publicKey).substring(0, 100)}
-                      ...
-                    </code>
-                  ) : (
-                    <code className="text-sm text-gray-500">
-                      No key registered
-                    </code>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Try In Another Browser */}
-            <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 rounded-2xl border border-yellow-500/30 p-6">
-              <h2 className="text-lg font-semibold mb-2 text-yellow-400">
-                🧪 Try This Experiment
-              </h2>
-              <ol className="list-decimal list-inside space-y-2 text-gray-300 text-sm">
-                <li>Login to create a session above</li>
-                <li>
-                  Copy your session cookie value:{" "}
-                  <code className="text-yellow-400">
-                    {sessionData.sessionId?.substring(0, 16) || "..."}
-                  </code>
-                </li>
-                <li>
-                  Open a <strong>different browser</strong> (or incognito
-                  window)
-                </li>
-                <li>
-                  Set the same cookie using DevTools: <br />
-                  <code className="text-xs text-gray-500">
-                    document.cookie = "session_id=PASTE_HERE"
-                  </code>
-                </li>
-                <li>Try to make an authenticated request</li>
-              </ol>
-              <div className="mt-4 p-3 bg-black/30 rounded-lg">
-                <p className="text-sm text-yellow-300 font-medium">
-                  Result: ❌ The session will be rejected because the new
-                  browser doesn't have the private key in IndexedDB!
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Attack Simulation */}
-          <div className="space-y-6">
-            {/* Attack Panel */}
-            <div className="bg-gray-900 rounded-2xl border border-red-500/30 p-6">
-              <h2 className="text-lg font-semibold mb-4 text-red-400">
-                ⚔️ Attack Simulations
-              </h2>
-
-              <div className="space-y-3">
-                <button
-                  onClick={simulateXSSCookieTheft}
-                  disabled={!isLoggedIn}
-                  className="w-full py-3 bg-red-500/20 border border-red-500/30 rounded-xl font-medium hover:bg-red-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  1. Steal Session Cookie (XSS)
-                </button>
-
-                <button
-                  onClick={simulateUseStokenCookie}
-                  disabled={!stolenCookie}
-                  className="w-full py-3 bg-red-500/20 border border-red-500/30 rounded-xl font-medium hover:bg-red-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  2. Use Stolen Cookie
-                </button>
-
-                <button
-                  onClick={simulateKeyExtraction}
-                  disabled={!isLoggedIn}
-                  className="w-full py-3 bg-red-500/20 border border-red-500/30 rounded-xl font-medium hover:bg-red-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  3. Extract Private Key
-                </button>
-
-                <button
-                  onClick={simulateCrossOriginAccess}
-                  disabled={!isLoggedIn}
-                  className="w-full py-3 bg-red-500/20 border border-red-500/30 rounded-xl font-medium hover:bg-red-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  4. Access Signing Iframe
-                </button>
-              </div>
-
-              {/* Attack Result */}
-              {attackResult && (
-                <div
-                  className={`mt-4 p-4 rounded-xl ${
-                    attackResult.success
-                      ? "bg-red-500/20 border border-red-500"
-                      : "bg-green-500/20 border border-green-500"
-                  }`}
-                >
-                  <p className="font-bold">{attackResult.message}</p>
-                  <p className="text-sm text-gray-300 mt-1">
-                    {attackResult.details}
-                  </p>
-                </div>
-              )}
-
-              {stolenCookie && (
-                <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
-                  <p className="text-xs text-yellow-400 font-medium">
-                    Stolen Cookie:
-                  </p>
-                  <code className="text-xs text-gray-300 break-all">
-                    {stolenCookie}
-                  </code>
-                </div>
-              )}
-            </div>
-
-            {/* Activity Log */}
-            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
-              <h2 className="text-lg font-semibold mb-4">📋 Activity Log</h2>
-              <div className="h-64 overflow-y-auto space-y-1 font-mono text-xs">
-                {logs.length === 0 ? (
-                  <p className="text-gray-500">No activity yet...</p>
-                ) : (
-                  logs.map((log, i) => (
-                    <div
-                      key={i}
-                      className={`py-1 ${
-                        log.type === "error"
-                          ? "text-red-400"
-                          : log.type === "success"
-                          ? "text-green-400"
-                          : log.type === "warning"
-                          ? "text-yellow-400"
-                          : "text-gray-400"
-                      }`}
+                    <button
+                      onClick={initializeSession}
+                      className="w-full bg-[#ccff00] text-black font-mono font-bold py-3 uppercase hover:bg-white transition-colors tracking-tight flex items-center justify-center gap-2"
                     >
-                      <span className="text-gray-600">[{log.timestamp}]</span>{" "}
-                      {log.message}
+                      <TerminalIcon className="w-4 h-4" /> Initiate_Session
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="border border-[#222] p-3 font-mono text-xs">
+                      <div className="text-[#666] mb-1">SESSION_ID</div>
+                      <div className="text-white break-all max-h-20 overflow-hidden text-ellipsis">
+                        {sessionData.sessionId?.substring(0, 32)}...
+                      </div>
                     </div>
-                  ))
+                    <div className="flex items-center justify-between text-xs font-mono text-[#ccff00]">
+                      <span>ENCLAVE: ACTIVE</span>
+                      <span>
+                        TIME:{" "}
+                        {Math.floor(
+                          (Date.now() - (sessionData.createdAt || 0)) / 1000
+                        )}
+                        s
+                      </span>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="w-full border border-[#ccff00] text-[#ccff00] font-mono py-2 uppercase hover:bg-[#ccff00] hover:text-black transition-colors text-xs"
+                    >
+                      TERMINATE_SESSION
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Security Summary */}
-            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
-              <h2 className="text-lg font-semibold mb-4">
-                🛡️ Why Attacks Fail
-              </h2>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Cookie is just an ID, not authority</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Private key is non-extractable (WebCrypto)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Signing origin is isolated (Same-Origin Policy)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Actions need real human interaction proof</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Nonces prevent replay attacks</span>
-                </li>
-              </ul>
+            {/* Storage Readout */}
+            <div className="flex-1 bg-[#0a0a0a] border border-[#222] p-6 relative overflow-hidden">
+              <h3 className="font-mono text-[#666] text-xs mb-4 uppercase flex items-center gap-2">
+                <ActivityIcon className="w-3 h-3" /> Memory_Dump
+              </h3>
+
+              <div className="space-y-3 font-mono text-xs">
+                <div className="grid grid-cols-[1fr_2fr] gap-2 p-2 border-b border-[#111]">
+                  <span className="text-[#444]">COOKIE_STORE</span>
+                  <span
+                    className={
+                      sessionData.sessionId ? "text-[#ccff00]" : "text-[#333]"
+                    }
+                  >
+                    {sessionData.sessionId ? "PRESENT (PUBLIC)" : "EMPTY"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[1fr_2fr] gap-2 p-2 border-b border-[#111]">
+                  <span className="text-[#444]">INDEXED_DB</span>
+                  <span
+                    className={
+                      sessionData.indexedDBKey
+                        ? "text-[#ccff00]"
+                        : "text-[#333]"
+                    }
+                  >
+                    {sessionData.indexedDBKey ? "SECURE (PRIVATE)" : "EMPTY"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[1fr_2fr] gap-2 p-2">
+                  <span className="text-[#444]">KEY_ATTRS</span>
+                  <span
+                    className={
+                      sessionData.indexedDBKey
+                        ? "text-[#ccff00]"
+                        : "text-[#333]"
+                    }
+                  >
+                    {sessionData.indexedDBKey ? "[EXTRACTABLE: FALSE]" : "N/A"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Decorative Elements */}
+              <div className="absolute bottom-4 right-4 text-[10px] text-[#222] font-mono flex flex-col items-end">
+                <span>MEM_ADDR: 0x84F2...</span>
+                <span>HEAP: 42%</span>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800 mt-12">
-        <div className="max-w-7xl mx-auto px-6 py-8 text-center text-gray-500 text-sm">
-          <p>
-            Partitioned Authority Sessions (PAN) - Making session hijacking
-            impossible
-          </p>
-          <p className="mt-2">
-            <a
-              href="https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions"
-              className="text-cyan-400 hover:underline"
-            >
-              View on GitHub
-            </a>
-            {" • "}
-            <a
-              href="https://www.npmjs.com/package/partitioned-authority-sessions"
-              className="text-cyan-400 hover:underline"
-            >
-              npm package
-            </a>
-          </p>
+          {/* Center Panel: Logs / Terminal */}
+          <div
+            className="lg:col-span-5 flex flex-col animate-reveal"
+            style={{ animationDelay: "200ms" }}
+          >
+            <div className="bg-black border border-[#333] flex-1 flex flex-col font-mono text-xs relative overflow-hidden group">
+              {/* Terminal Scanline */}
+              <div className="absolute w-full h-1 bg-[#ccff00] opacity-10 top-0 left-0 animate-[scan_3s_linear_infinite] pointer-events-none"></div>
+
+              <div className="flex items-center justify-between p-2 border-b border-[#222] bg-[#050505]">
+                <span className="text-[#666]">EVENT_LOG // STREAM</span>
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-[#333] rounded-full"></div>
+                  <div className="w-2 h-2 bg-[#333] rounded-full"></div>
+                </div>
+              </div>
+
+              <div className="flex-1 p-4 overflow-y-auto space-y-1 font-mono">
+                {logs.length === 0 ? (
+                  <div className="text-[#333] mt-20 text-center animate-pulse">
+                    Waiting for system events...
+                  </div>
+                ) : (
+                  logs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="grid grid-cols-[auto_1fr] gap-3"
+                    >
+                      <span className="text-[#444] select-none">
+                        {log.timestamp}
+                      </span>
+                      <span
+                        className={`${
+                          log.type === "error"
+                            ? "text-red-500"
+                            : log.type === "success"
+                            ? "text-[#ccff00]"
+                            : log.type === "warning"
+                            ? "text-orange-400"
+                            : "text-[#888]"
+                        }`}
+                      >
+                        {log.type === "success" && ">> "}
+                        {log.message}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <div className="w-2 h-4 bg-[#ccff00] animate-pulse inline-block mt-2"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel: Attack Tools */}
+          <div
+            className="lg:col-span-3 flex flex-col gap-4 animate-reveal"
+            style={{ animationDelay: "300ms" }}
+          >
+            <div className="p-4 border border-red-900/40 bg-red-950/5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2 opacity-50">
+                <ShieldIcon className="w-12 h-12 text-red-900" />
+              </div>
+              <h3 className="text-red-500 font-mono text-xs uppercase mb-4 tracking-widest border-b border-red-900/30 pb-2">
+                Adversary_Toolkit
+              </h3>
+
+              <div className="space-y-2">
+                <button
+                  onClick={simulateXSSCookieTheft}
+                  disabled={!isLoggedIn}
+                  className="w-full text-left p-3 border border-[#222] hover:border-red-500 text-[#666] hover:text-red-400 text-xs font-mono uppercase transition-all disabled:opacity-20 flex justify-between items-center group"
+                >
+                  <span className="group-hover:translate-x-1 transition-transform">
+                    XSS_INJECT
+                  </span>
+                  <span className="opacity-0 group-hover:opacity-100">+</span>
+                </button>
+                <button
+                  onClick={simulateUseStokenCookie}
+                  disabled={!stolenCookie}
+                  className="w-full text-left p-3 border border-[#222] hover:border-red-500 text-[#666] hover:text-red-400 text-xs font-mono uppercase transition-all disabled:opacity-20 flex justify-between items-center group"
+                >
+                  <span className="group-hover:translate-x-1 transition-transform">
+                    REPLAY_TOKEN
+                  </span>
+                  <span className="opacity-0 group-hover:opacity-100">+</span>
+                </button>
+                <button
+                  onClick={simulateKeyExtraction}
+                  disabled={!isLoggedIn}
+                  className="w-full text-left p-3 border border-[#222] hover:border-red-500 text-[#666] hover:text-red-400 text-xs font-mono uppercase transition-all disabled:opacity-20 flex justify-between items-center group"
+                >
+                  <span className="group-hover:translate-x-1 transition-transform">
+                    DUMP_P_KEY
+                  </span>
+                  <span className="opacity-0 group-hover:opacity-100">+</span>
+                </button>
+              </div>
+            </div>
+
+            {attackResult && (
+              <div
+                className={`p-4 border ${
+                  attackResult.success
+                    ? "border-red-500 bg-red-500/10"
+                    : "border-[#ccff00] bg-[#ccff00]/10"
+                } animate-reveal`}
+              >
+                <div
+                  className={`text-xs font-mono font-bold mb-1 ${
+                    attackResult.success ? "text-red-500" : "text-[#ccff00]"
+                  }`}
+                >
+                  {attackResult.success ? "BREACH_SUCCESSFUL" : "ACCESS_DENIED"}
+                </div>
+                <p className="text-[10px] font-mono text-[#888] uppercase leading-relaxed">
+                  CODE: {attackResult.details}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-      </footer>
+
+        {/* Footer */}
+        <footer className="mt-8 pt-4 border-t border-[#222] flex justify-between text-[10px] font-mono text-[#444] uppercase">
+          <div>SECURE_KERNEL_VERSION: 4.8.2</div>
+          <div>PAN_DEMO // DEEPMIND // 2026</div>
+        </footer>
+      </div>
     </div>
   );
 }

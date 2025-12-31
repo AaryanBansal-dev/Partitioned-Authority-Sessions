@@ -139,9 +139,9 @@ go run ./cmd/server
 
 Output:
 ```
-2024/01/01 12:00:00 Starting PAN API Server on :8080
-2024/01/01 12:00:00 Connected to Redis at localhost:6379
-2024/01/01 12:00:00 Server ready
+2026/01/01 12:00:00 Starting PAN API Server on :8080
+2026/01/01 12:00:00 Connected to Redis at localhost:6379
+2026/01/01 12:00:00 Server ready
 ```
 
 ### Terminal 4: Redis (if not running as service)

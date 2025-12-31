@@ -79,7 +79,7 @@ When deploying PAN:
 
 ## Audit History
 
-- **2024-01**: Initial security review
+- **2026-01**: Initial security review
 - *More audits pending*
 
 ---
