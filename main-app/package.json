@@ -2,6 +2,11 @@
   "name": "pan-main-app",
   "version": "1.0.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions.git",
+    "directory": "main-app"
+  },
   "scripts": {
     "dev": "vite --port 3000",
     "build": "vite build",

@@ -134,36 +134,38 @@ An attacker who steals any single component gains **nothing**. All three must be
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Installation (npm)
 
-- **Node.js** 18+ (for TypeScript compilation)
-- **Go** 1.21+ (for API server)
-- **Redis** 7.0+ (for distributed storage)
+```bash
+npm install partitioned-authority-sessions
+# or
+bun add partitioned-authority-sessions
+```
+
+See [IMPLEMENTATION.md](IMPLEMENTATION.md) for detailed integration guide.
+
+### Installation (from source)
+
+**Prerequisites:**
+- **Node.js** 18+ or **Bun** (recommended)
+- **Redis** 7.0+ (optional - falls back to in-memory)
 - **Modern Browser** (Chrome 60+, Firefox 55+, Safari 11+, Edge 79+)
-
-### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/partitioned-authority-sessions.git
-cd partitioned-authority-sessions
+git clone https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions.git
+cd Partitioned-Authority-Sessions
 
-# Install main application dependencies
-cd main-app
-npm install
+# Install dependencies
+bun install
 
-# Build TypeScript
-npm run build
+# Start all services
+./dev.sh
 
-# Install signing iframe dependencies
-cd ../signing-iframe
-npm install
-npm run build
-
-# Build Go API server
-cd ../api-server
-go mod download
-go build -o pas-server ./cmd/server
+# Or manually:
+cd api-server && bun run dev &     # Port 8080
+cd signing-iframe && bun run dev & # Port 3001
+cd main-app && bun run dev &       # Port 3000
 ```
 
 ### Configuration

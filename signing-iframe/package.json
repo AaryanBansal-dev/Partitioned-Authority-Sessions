@@ -2,6 +2,11 @@
   "name": "pan-signing-iframe",
   "version": "1.0.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions.git",
+    "directory": "signing-iframe"
+  },
   "scripts": {
     "dev": "vite --port 3001",
     "build": "vite build",

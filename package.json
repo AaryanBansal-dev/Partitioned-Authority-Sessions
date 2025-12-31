@@ -1,0 +1,79 @@
+{
+  "name": "partitioned-authority-sessions",
+  "version": "1.0.0",
+  "description": "A revolutionary session security architecture that makes stolen session tokens cryptographically worthless through origin isolation and interaction proofs",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client/index.mjs",
+      "require": "./dist/client/index.js",
+      "types": "./dist/client/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.mjs",
+      "require": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
+    },
+    "./signing-iframe": {
+      "import": "./dist/signing-iframe/index.mjs",
+      "require": "./dist/signing-iframe/index.js",
+      "types": "./dist/signing-iframe/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "signing-iframe/dist",
+    "README.md",
+    "IMPLEMENTATION.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun run build:client && bun run build:server && bun run build:iframe",
+    "build:client": "cd main-app && bun run build",
+    "build:server": "cd api-server && bun run build",
+    "build:iframe": "cd signing-iframe && bun run build",
+    "dev": "./dev.sh",
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions.git"
+  },
+  "keywords": [
+    "security",
+    "session",
+    "authentication",
+    "xss-prevention",
+    "session-hijacking",
+    "webcrypto",
+    "ecdsa",
+    "cryptography",
+    "origin-isolation",
+    "zero-trust"
+  ],
+  "author": "Aaryan Bansal",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions/issues"
+  },
+  "homepage": "https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions#readme",
+  "peerDependencies": {
+    "ioredis": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

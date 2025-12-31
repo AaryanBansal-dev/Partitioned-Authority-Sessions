@@ -2,9 +2,15 @@
   "name": "pan-api-server",
   "version": "1.0.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AaryanBansal-dev/Partitioned-Authority-Sessions.git",
+    "directory": "api-server"
+  },
   "scripts": {
     "dev": "bun run --hot src/server.ts",
-    "start": "bun run src/server.ts"
+    "start": "bun run src/server.ts",
+    "build": "mkdir -p dist && cp -r src/* dist/"
   },
   "dependencies": {
     "ioredis": "^5.0.0"
