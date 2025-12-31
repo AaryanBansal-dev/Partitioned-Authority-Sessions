@@ -1,0 +1,21 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "partitioned-authority-sessions",
+      "dependencies": {
+        "partitioned-authority-sessions": "^1.0.1",
+      },
+      "peerDependencies": {
+        "ioredis": ">=5.0.0",
+      },
+      "optionalPeers": [
+        "ioredis",
+      ],
+    },
+  },
+  "packages": {
+    "partitioned-authority-sessions": ["partitioned-authority-sessions@1.0.1", "", { "peerDependencies": { "ioredis": ">=5.0.0" }, "optionalPeers": ["ioredis"] }, "sha512-Ruy3dBbwmLTbKOa5pG0HRGDKdr2Iwx/p3dt5tiiKuzMBlL2McxOJQQxmgZdRAm0AvzZNuqMWsFx6mFM4zfN+GQ=="],
+  }
+}

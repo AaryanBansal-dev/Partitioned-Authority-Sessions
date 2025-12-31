@@ -36,3 +36,6 @@ coverage/
 
 # Misc
 *.local
+
+# TESTS
+test
