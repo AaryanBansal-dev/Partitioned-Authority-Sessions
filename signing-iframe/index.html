@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PAN Signing Context</title>
+    <style>
+      /* This iframe should be invisible in production */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, sans-serif;
+        background: transparent;
+      }
+
+      /* Debug mode visual indicator */
+      .debug-mode {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 8px;
+        background: #1a1a2e;
+        color: #4ecca3;
+        font-size: 12px;
+        font-family: monospace;
+        text-align: center;
+        border-bottom: 2px solid #4ecca3;
+      }
+
+      .status {
+        margin-top: 4px;
+        color: #e94560;
+      }
+
+      .status.ready {
+        color: #4ecca3;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- In production, this iframe has no visible content -->
+    <!-- Debug indicator shown only when accessed directly -->
+    <div class="debug-mode">
+      <div>🔐 PAN Signing Context</div>
+      <div class="status" id="status">Initializing...</div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Update status indicator for debugging
+      window.addEventListener("message", function (e) {
+        if (e.data && e.data.type) {
+          document.getElementById("status").textContent =
+            "Last message: " + e.data.type;
+          document.getElementById("status").className = "status ready";
+        }
+      });
+
+      // Set ready status after initialization
+      setTimeout(function () {
+        const status = document.getElementById("status");
+        if (status.textContent === "Initializing...") {
+          status.textContent = "Ready - Listening for messages";
+          status.className = "status ready";
+        }
+      }, 500);
+    </script>
+  </body>
+</html>
